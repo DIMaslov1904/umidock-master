@@ -1,0 +1,116 @@
+---
+services:
+    php:
+        build: ./php/${PHP_VERSION}
+        container_name: php
+        volumes_from:
+            - source
+        links:
+            - db
+            - memcached
+        environment:
+            TZ: Europe/Moscow
+        stdin_open: true
+        tty: true
+        networks:
+            - umidock
+        restart: unless-stopped
+
+    web_server:
+        build: ./apache
+        container_name: web_server
+        depends_on:
+            - source
+        volumes_from:
+            - source
+        ports:
+            - '${INTERFACE}:80:80'
+            - '${INTERFACE}:443:443'
+        links:
+            - php
+        networks:
+            - umidock
+        environment:
+            TZ: Europe/Moscow
+        stdin_open: true
+        tty: true
+        restart: unless-stopped
+
+    db:
+        build: ./mysql
+        container_name: db
+        volumes:
+            - ./mysql/init:/docker-entrypoint-initdb.d
+        volumes_from:
+            - source
+        ports:
+            - '${INTERFACE}:3306:3306'
+        environment:
+            MYSQL_DATABASE: ${MYSQL_DATABASE}
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            TZ: Europe/Moscow
+        command: mysqld --user=root --sql-mode=""
+        networks:
+            - umidock
+        stdin_open: true
+        tty: true
+        restart: unless-stopped
+
+    memcached:
+        image: memcached:latest
+        container_name: memcached
+        volumes_from:
+            - source
+        ports:
+            - '${INTERFACE}:11211:11211'
+        networks:
+            - umidock
+        environment:
+            TZ: Europe/Moscow
+        stdin_open: true
+        tty: true
+        restart: unless-stopped
+
+    phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        container_name: ${COMPOSE_PROJECT_NAME}_phpmyadmin
+        links:
+            - db:db
+        ports:
+            - '${INTERFACE}:8080:80'
+        environment:
+            UPLOAD: 1024M
+            TZ: Europe/Moscow
+            PMA_HOST: db
+            PMA_ARBITRARY: 1
+        restart: on-failure
+        stdin_open: true
+        tty: true
+        networks:
+            - umidock
+
+    source:
+        image: alpine:latest
+        container_name: source
+        volumes:
+            - ./logs/apache:/var/log/apache
+            - ./logs/php:/var/log/php
+            - ./logs/db:/var/log/mysql
+            - ./logs/memcached:/var/log/memcached
+            - db:/var/lib/mysql
+            - cache:/var/lib/memcached
+            - ${SITE_PATH}:/var/www/umi
+            - /etc/localtime:/etc/localtime/:ro
+        networks:
+            - umidock
+
+volumes:
+    db:
+        driver: local
+    cache:
+        driver: local
+
+networks:
+    umidock:
