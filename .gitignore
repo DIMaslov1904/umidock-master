@@ -1,7 +1,7 @@
 .idea
 .vscode
 .fleet
-
+logs
 .env
 
 desktop.ini
